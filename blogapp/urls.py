@@ -6,7 +6,7 @@ from rest_framework import routers
 #ROUTER in django rest_framework are desdinged to work with viewsets, wihich providew actions like post,create, retrieve...
 router = routers.SimpleRouter()
 
-router.register(r'create_post', PostViewSet, basename = 'createpost' )
+router.register(r'post', PostViewSet, basename = 'post' )
 router.register(r'user_register', UserViewSet, basename = 'register')
 router.register(r'post_type_list', CategoryViewSet, basename = 'category_create')
 router.register(r'user_comment',CommentViewSet, basename= 'comments')

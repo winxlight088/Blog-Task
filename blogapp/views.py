@@ -12,6 +12,12 @@ from rest_framework.authtoken.models import Token
 from .models import *
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from rest_framework import filters
+from django_filters import rest_framework as filter
+from rest_framework import filters as drf_filters
+from .filters import *
+
+from django_filters.rest_framework import DjangoFilterBackend
 
 
 class UserViewSet(viewsets.ModelViewSet): #inheriting viewsets.modelViewset which is built-in functionality for handling HTTP methods
@@ -94,6 +100,34 @@ class PostViewSet(viewsets.ModelViewSet): #for posting
     
     """The IsAuthenticatedOrReadOnly permission class allows authenticated users to perform any action (create, update, delete),---
     if unauthenticated users, then can only read (GET) posts. This ensures that only logged-in users can create or modify posts"""
+    
+    #Data Filtering and Searching:
+    filter_backends =[filters.DjangoFilterBackend, drf_filters.SearchFilter]
+    search_fields = ['title', 'author__username', 'category__category_name']
+    filterset_class = PostFilter
+    
+    def list(self, request, *args, **kwargs): #built in method/function provided by rest framework
+        
+        #get query parameter for filtering
+        created_at = self.request.query_params.get('created_at')
+        category_name = self.request.query_params.get('category')
+        queryset = self.get_queryset() # data haru Default ma rakheko. Otherwise , it will display mesage  (No Matching data found)
+        
+        if created_at and category_name:
+            queryset = queryset.filter(created_at__date = created_at, category =category_name)
+
+        elif created_at or category_name:
+            return Response({
+                "Message":"Please provide at least one filter with correct data"
+            })
+            
+        if not queryset.exists():
+            return Response({
+                "Message":"No Matching data found"
+                },status=404)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
     
     def perform_create(self, serializer):
         #rest-framework built in function to perform create operation. this function/method is called when a POST request is made to  create new post.
