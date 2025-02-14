@@ -15,8 +15,9 @@ from drf_yasg import openapi
 from rest_framework import filters
 from django_filters import rest_framework as filter
 from rest_framework import filters as drf_filters
-from .filters import *
 
+from .filters import *
+from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 
 
@@ -94,40 +95,75 @@ class LoginAPIView(APIView): # LoginAPIView is used to handle user login request
 class PostViewSet(viewsets.ModelViewSet): #for posting 
     queryset=Post.objects.all() #retrieves all instances of the Post model. This queryset will be used for operations like listing all posts or retrieving a specific post.
     serializer_class = PostSerializer
-    # Serializer Class: This line specifies the serializer class  will be used to convert "Post" instances to JSON or from JSON (or other content types).
+    # Serializer Class: This line specifies the serializer class  will be used to convert "Post" instances(model) to JSON or from JSON (or other content types).
 
     permission_classes = [IsAuthenticatedOrReadOnly] # FROM permissions.py imported ---
-    
     """The IsAuthenticatedOrReadOnly permission class allows authenticated users to perform any action (create, update, delete),---
     if unauthenticated users, then can only read (GET) posts. This ensures that only logged-in users can create or modify posts"""
     
-    #Data Filtering and Searching:
-    filter_backends =[filters.DjangoFilterBackend, drf_filters.SearchFilter]
-    search_fields = ['title', 'author__username', 'category__category_name']
-    filterset_class = PostFilter
     
-    def list(self, request, *args, **kwargs): #built in method/function provided by rest framework
+    #Data Filtering and Searching:
+    filter_backends =[DjangoFilterBackend] # Enables filtering capabilities using the Django Filter backend.
+    # search_fields = ['title', 'author__username', 'category__category_name']
+    filterset_class = PostFilter #imported from .filters.py, (Associates the PostFilter class with this viewset for filtering posts.)
+    pagination_class =PageNumberPagination
+   
+    
+    
+    
+    def list(self, request, *args, **kwargs): #built in method/function provided by rest framework (Overrides the default list method to apply filtering and pagination.)
         
         #get query parameter for filtering
-        created_at = self.request.query_params.get('created_at')
-        category_name = self.request.query_params.get('category')
-        queryset = self.get_queryset() # data haru Default ma rakheko. Otherwise , it will display mesage  (No Matching data found)
+        # created_at = self.request.query_params.get('created_at')
+        # category_name = self.request.query_params.get('category')
+        # author_name = self.request.query_params.get('author')
+        # post_title = self.request.query_params.get('title')
         
-        if created_at and category_name:
-            queryset = queryset.filter(created_at__date = created_at, category =category_name)
+                                        #parentheses 
+        queryset = self.filter_queryset(self.get_queryset()) # Applies the filters defined in PostFilter to the queryset.
+        """self.get_queryset() is called first, which retrieves the initial queryset.
+        The result of this call is then passed as an argument to self.filter_queryset(),
+        which applies the filtering logic to that queryset."""
+        
+        # Call the superclass's(ModelViewSet) list method to handle pagination
+        page = self.paginate_queryset(queryset) #built-in method provided by rest framework (Paginates the queryset)
+        
+        if page is not None: 
+            serializer=self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        '''Using is not None is clearer and more explicit about what you
+        are checking. It indicates that you are specifically checking for the None value.
+        The (is) operator checks for identity, which is generally preferred when checking for None. BUT 
+        The != operator checks for equality, which can lead to unexpected behavior if the variable is of a different type that can be compared to None.
+        so is not None operator is used instead of !='''
+        
+    
 
-        elif created_at or category_name:
-            return Response({
-                "Message":"Please provide at least one filter with correct data"
-            })
-            
-        if not queryset.exists():
-            return Response({
-                "Message":"No Matching data found"
-                },status=404)
+
+        #queryset = self.filter_queryset(self.get_queryset()) 
+        
+        
+        # if created_at: 
+        #     queryset = queryset.filter(created_at__date=created_at)
+        
+        # if category_name:
+        #     queryset = queryset.filter(category__category_name__icontains=category_name)
+        
+        # if author_name:
+        #     queryset = queryset.filter(author__username__icontains=author_name)
+        
+        # if post_title:
+        #     queryset = queryset.filter(title__icontains=post_title)
+                    
+        # if not queryset.exists():
+        #     return Response({
+        #         "Message":"No Matching data found"
+        #         })
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+    
     
     def perform_create(self, serializer):
         #rest-framework built in function to perform create operation. this function/method is called when a POST request is made to  create new post.
@@ -162,13 +198,20 @@ class CommentViewSet(viewsets.ModelViewSet):
     
     permission_classes=[IsAuthenticatedOrReadOnly, IsCommentAuthor] #if proper authenticated(logged in) users then allow CRUD operations else only read operation is allowed.
     #IsCommentAuthor permission class checks if the user trying to update or delete a comment is the author of that comment. This ensures that only the user who created the comment can modify or delete it.
+    pagination_class = PageNumberPagination
+    
     def perform_create(self, serializer): #this function/method is called when a POST request is made to  create new comment.
         
         if self.request.user.is_authenticated: # checks if the user making request is logged-in (authenticated)
-            return serializer.save(author=self.request.user) 
+            return serializer.save(author=self.request.user)
+            
             """The author field is automatically set to the currently logged-in user (self.request.user),--
             making sure that the comment is related with the user who commented on the post.
-            If the reuqested user is authenticated, it calls the save method on the serializer, which saves the new comment instance to the database"""
+            If the reuqested user is authenticated, it calls the save method on the serializer,
+            which saves the new comment instance to the database"""
+        
+        
+        
         else:
             raise serializers.ValidationError()
             #if the user is not authenticated,  raises a ValidationError
@@ -179,3 +222,5 @@ class CommentViewSet(viewsets.ModelViewSet):
 #     permission_classes =[IsCommentAuthor, IsAuthenticatedOrReadOnly]
 
    
+    
+    

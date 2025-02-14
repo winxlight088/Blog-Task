@@ -3,20 +3,31 @@ from .models import *
 from django.contrib.auth.models import User
 
 class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User #DB model
+    class Meta: #The Meta class is a nested class that provides metadata to the serializer
+        model = User #DB model imported
         fields = ['id','username','password'] #the fields i want to show in the API
-        extra_kwargs = {
+        extra_kwargs = { #extra keyword arguments . purpose: The extra_kwargs dictionary allows us to specify additional options for specific fields.
             'password':{'write_only':True}
-            } # this dictionery is used so that password field shou on be write ony,this means when it serialize the data back to JSON , the password will not be included
+            } 
         
+        """password:{'write_only':True} = this dictionery is used so that password field should on be write only,this means 
+       when it serialize the data back to JSON , the password will not be included in output.
+       important for security reasons, as users typically do not want to expose user passwords in API responses. """
+    
     def create(self, validated_data):# this method is inheritaed from serializers.ModelSerializer, to create new user 
-        #create new user and hash the password
-            user = User(username = validated_data['username']) #from model User which has been inheritaed
-            user.set_password(validated_data['password']) # password  hash gareko through parameter using validated_data
-            user.is_active=True # Ensure the user is active
-            user.save()
-            return user
+    
+        """ This method overrides the default create method provided by ModelSerializer. 
+        It is responsible for creating a new user instance. By overriding this method, we can customize the user 
+        creation process, such as hashing the password before saving it to the database."""
+    
+        user = User(username = validated_data['username']) #from model User which has been inheritaed
+        """validated_data['username']---It retrieves the username that the user provided when creating a new account. 
+        This value is expected to be present in the input data that was validated by the serializer."""
+        
+        user.set_password(validated_data['password']) # password  hash gareko through parameter using validated_data
+        user.is_active=True # Ensure the user is active
+        user.save()
+        return user
 
 
     
@@ -47,11 +58,14 @@ class PostSerializer(serializers.ModelSerializer):
         
         
         def create(self, validated_data): #this method is called when creating a new post
+            #validated_data: This parameter is a dictionary that contains the data that has been validated by the serializer. It includes all the fields that are required to create a new Post instance,
             #get the current logged-in user 
-            user=self.context['request'].user # Access the request context to get the user, and to associate the new post with user who created it
-            validated_data['author']= user # associate the post with the user/author who created it
+            user=self.context['request'].user # Access the request context to get the currently logged in user, and to associate the new post with user who created it
+            validated_data['author']= user # associate the post with the user/author who created it, purpose =  This line adds the current user to the validated_data dictionary under the key 'author'.
             # adding the 'author' field to validated data and setting it to the logged-in user, This means that when author save the post, it will be linked to the correct author.
-            
+            """When creating a new post, we want to associate it with the user who is currently logged in. 
+            By adding the user to validated_data, we ensure that when the post is saved, 
+            the author field of the Post model will be populated with the correct user."""
 
 class CommentSerializer(serializers.ModelSerializer):
     post_id = serializers.PrimaryKeyRelatedField(
@@ -94,9 +108,19 @@ class CategorySerializer(serializers.ModelSerializer): #this class is for what t
     def update(self, instance, validated_data):
         instance.category_name = validated_data.get("category_name", instance.category_name) #This line updates the category_name of the instance (the existing Category object) with the new value provided in validated_data.
         #above code - if category_name is not present in validated_data, it retains the current value of instance.category_name.
-        total_number = self.Meta.model.objects.filter(category_name = validated_data.get('category_name')).count()
-        category_id = validated_data.get('id')
-        if category_id: # if category_id exists/provided
+        """In simpler terms, it checks if the user has given a new name for the category. 
+        If they have, it updates the category name to that new name. If they haven't, it keeps the old name.
+        
+        Let's say i have a category with the name "Technology" and i want to update it:
+        If validated_data contains {"category_name": "Tech"}, then:
+        instance.category_name will be updated to "Tech".
+        If validated_data contains {}, meaning no new category name is provided, then:
+        instance.category_name will remain "Technology"."""
+        
+        total_number = self.Meta.model.objects.filter(category_name = validated_data.get('category_name')).count() #This variable counts how many categories have the same name as the one provided in validated_data.
+        category_id = validated_data.get('id') #This retrieves the ID of the category being updated from validated_data.
+
+        if category_id: # if category_id exists/provided, If it is, it attempts to retrieve the existing category from the database.
             
             try:
                 category = self.Meta.model.objects.get(id=category_id)#retrieve the existing category
@@ -104,10 +128,13 @@ class CategorySerializer(serializers.ModelSerializer): #this class is for what t
                 category.save() #save the updated category
                 return category  # return the updated category
             except self.Meta.model.DoesNotExist:
+                #If the category does not exist, it raises a ValidationError with a message indicating that the category was not found.
                 raise serializers.ValidationError(
                     "This tags or category not found"
                 )
-        if total_number > 0:
+        
+        #This line checks if there are any existing categories with the same name as the one being updated.
+        if total_number > 0: # indicating that if the category name already exists in the database. This prevents duplicate category names.
             raise serializers.ValidationError("This Post/Category/Tags name already exists.")
         instance.save()
         return instance

@@ -7,7 +7,7 @@ User = get_user_model() #calling get_user_model to get user (DB) model from sett
 class Category(models.Model):# what type of post/tags
     category_name = models.CharField(max_length=100, unique= True)
     
-    def __str__(self): #this is to return a string representation of the object
+    def __str__(self): #this is to return a string representation of the object,__str__ method allows you to specify how instances of the model should be represented as strings, 
         return self.category_name # 
 
 class Post(models.Model): #database for authors
@@ -18,7 +18,7 @@ class Post(models.Model): #database for authors
     updated_at = models.DateTimeField(auto_now = True) #auto_now fields are updated to the current timestamp every time an object is saved and are therefore perfect for tracking when an object was last modified
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     
-    def __str__(self):
+    def __str__(self): # __str__ method is used to define a string representation of an object. 
         return self.title
     
 class Comments(models.Model):
